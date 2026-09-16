@@ -279,7 +279,6 @@
         }, 500);
     }
 
-    // [안전장치 적용] 빈 칸 때문에 기존 기록이 지워지지 않도록 수정된 수집 함수
     function collectCurrentUIInputs() {
         window.strategies.forEach(strat => {
             let dateEl = document.getElementById(`date-${strat.id}`);
@@ -307,7 +306,6 @@
                 }
             });
 
-            // 값이 실제로 존재할 때만 저장하여 백그라운드 탭이 기존 데이터를 지우는 것 방지
             if (buys.length > 0 || sells.length > 0) {
                 if(!window.allData[dateVal]) window.allData[dateVal] = {};
                 window.allData[dateVal][strat.id] = { mult: multVal, buys: buys, sells: sells };
@@ -752,7 +750,18 @@
         
         let recordDate = document.getElementById('record-date').value;
         window.historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        // 1. 당일 정확한 기록이 있는지 확인
         let exactRecord = window.historyData.find(h => h.date === recordDate);
+        
+        // 2. 정확한 기록이 없다면, 주말/휴장일을 자동 건너뛰고 '가장 가까운 과거(직전 영업일)'의 기록을 베이스로 탐색
+        let baseRecord = exactRecord;
+        if (!baseRecord) {
+            let pastRecords = window.historyData.filter(h => h.date < recordDate);
+            if (pastRecords.length > 0) {
+                baseRecord = pastRecords[pastRecords.length - 1]; // 가장 최신 과거 기록
+            }
+        }
         
         let rateInput = document.getElementById('record-exchange-rate');
         let closeInput = document.getElementById('record-close-price');
@@ -764,19 +773,22 @@
 
         let closePrice = parseFloat(closeInput.value) || 0;
         let exchangeRate = parseFloat(rateInput.value) || 0;
-        let latestRecord = window.historyData.length > 0 ? window.historyData[window.historyData.length - 1] : null;
 
         tbody.innerHTML = '';
         let totalShares = 0, totalCash = 0, totalValUSD = 0, totalInit = 0, totalWeightedCost = 0;
         let dayOrders = window.allData[recordDate] || {};
 
         window.strategies.forEach(strat => {
-            let base = { shares: 0, avgPrice: 0, cash: 0, initCash: 0 }; 
-            if (exactRecord && exactRecord.details && exactRecord.details[strat.id]) {
-                let d = exactRecord.details[strat.id];
-                base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
-            } else if (latestRecord && recordDate > latestRecord.date && latestRecord.details && latestRecord.details[strat.id]) {
-                let d = latestRecord.details[strat.id];
+            // 직전 영업일 기록이 있으면 그 데이터를 가져오고, 없으면 기법 기본값 사용
+            let base = { 
+                shares: strat.defaultShares || 0, 
+                avgPrice: strat.defaultAvg || 0, 
+                cash: strat.defaultCash || 50000, 
+                initCash: strat.defaultInit || 50000 
+            }; 
+            
+            if (baseRecord && baseRecord.details && baseRecord.details[strat.id]) {
+                let d = baseRecord.details[strat.id];
                 base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
             }
 
@@ -784,6 +796,7 @@
             let mult = stratDayOrders ? (stratDayOrders.mult || 1) : (strat.defaultMult || 1);
             let currentShares = Number(base.shares), currentAvg = Number(base.avgPrice), currentCash = Number(base.cash), initCash = Number(base.initCash);
 
+            // 당일 확정된 일별 기록이 없을 때만 직전 데이터 + 당일 입력한 주문의 체결 시뮬레이션 자동 반영
             if (!exactRecord && stratDayOrders) {
                 if(stratDayOrders.buys) {
                     stratDayOrders.buys.forEach(b => {

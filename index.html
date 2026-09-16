@@ -221,8 +221,10 @@
 
         .history-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
         .history-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; color: #2b6cb0; font-size: 14px; }
-        .history-body-grid { display: flex; gap: 15px; align-items: center; }
-        .history-info-side { flex: 1.5; font-size: 13px; color: #4a5568; line-height: 1.6; }
+        .history-body-grid { display: flex; gap: 20px; align-items: center; justify-content: space-between; }
+        .history-info-side { flex: 1; font-size: 13px; color: #4a5568; line-height: 1.6; }
+        .history-chart-side { display: flex; align-items: center; justify-content: center; padding-right: 10px; flex-shrink: 0; }
+        
         .strat-manage-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
     </style>
 </head>
@@ -766,7 +768,6 @@
         let closePrice = parseFloat(closeInput.value) || 0;
         let exchangeRate = parseFloat(rateInput.value) || 0;
 
-        // 주말/휴장일을 자동 건너뛰기 위해 가장 가까운 과거(직전 영업일) 기록 탐색
         let pastRecords = window.historyData.filter(h => h.date < recordDate);
         let baseRecord = pastRecords.length > 0 ? pastRecords[pastRecords.length - 1] : null;
 
@@ -791,7 +792,6 @@
             let mult = stratDayOrders ? (stratDayOrders.mult || 1) : (strat.defaultMult || 1);
             let currentShares = Number(base.shares), currentAvg = Number(base.avgPrice), currentCash = Number(base.cash), initCash = Number(base.initCash);
 
-            // [핵심 수정] 일별 누적 히스토리가 기록되어 있더라도, 종가나 주문을 수정하면 전날 데이터를 베이스로 실시간 재계산 수행
             if (stratDayOrders) {
                 if(stratDayOrders.buys) {
                     stratDayOrders.buys.forEach(b => {
@@ -911,13 +911,30 @@
         container.innerHTML = '';
         sorted.forEach((item) => {
             let detailHtml = '', idx = 0;
+            let gradientStops = [];
+            let currentAngle = 0;
+            let totalVal = item.totalValUSD || 1;
+
             for (let key in item.details) {
                 let d = item.details[key], color = chartColors[idx % chartColors.length];
-                let weight = item.totalValUSD > 0 ? ((d.valUSD / item.totalValUSD) * 100).toFixed(1) : 0;
+                let weight = totalVal > 0 ? ((d.valUSD / totalVal) * 100).toFixed(1) : 0;
+                
+                // 도넛 차트 각도 계산
+                let pct = totalVal > 0 ? (d.valUSD / totalVal) : 0;
+                if (pct > 0) {
+                    let startAngle = currentAngle;
+                    let endAngle = currentAngle + (pct * 360);
+                    gradientStops.push(`${color} ${startAngle}deg ${endAngle}deg`);
+                    currentAngle = endAngle;
+                }
+
                 detailHtml += `<div style="display:flex; align-items:center; margin-bottom:3px; gap:6px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span><span><b>${d.name}</b>: ${d.shares}주 (평단:$${d.avgPrice}, 총합:$${d.valUSD}) — 비중 <b>${weight}%</b></span></div>`;
                 idx++;
             }
+
+            let conicStyle = gradientStops.length > 0 ? `background: conic-gradient(${gradientStops.join(', ')});` : 'background: #edf2f7;';
             let isSelected = (item.date === recordDate);
+
             container.innerHTML += `
                 <div class="history-card" style="${isSelected ? 'border: 2px solid #2b6cb0; background-color: #f7fafc;' : ''}">
                     <div class="history-header" style="${isSelected ? 'color: #2b6cb0;' : 'color: #4a5568;'}">
@@ -929,6 +946,13 @@
                             <b>총 수량:</b> ${item.totalSh}주 | <b>평가금액:</b> $${item.totalValUSD.toFixed(2)} (<b>￦${(item.totalValKRW || 0).toLocaleString()}</b>)<br>
                             <b>손익:</b> <span style="color:${item.totProfit>=0?'#e53e3e':'#3182ce'}">$${item.totProfit.toFixed(2)} (${item.totRet >= 0 ? '▲' : '▼'}${Math.abs(item.totRet).toFixed(1)}%)</span>
                             <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #edf2f7;">${detailHtml}</div>
+                        </div>
+                        <div class="history-chart-side">
+                            <div style="width: 100px; height: 100px; border-radius: 50%; ${conicStyle} position: relative; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                                <div style="width: 62px; height: 62px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #4a5568; box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);">
+                                    비중
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>`;

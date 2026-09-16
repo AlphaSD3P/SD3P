@@ -33,7 +33,7 @@
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
 
-        // 전역 함수 등록 (HTML 버튼에서 호출하기 위함)
+        // 전역 함수 등록
         window.loginWithGoogle = async function() {
             try {
                 await signInWithPopup(auth, provider);
@@ -57,22 +57,18 @@
             const userEmailDisplay = document.getElementById('user-email-display');
 
             if (user) {
-                // [핵심 보안 검증] 로그인한 계정이 내 이메일이 아니라면?
                 if (user.email !== OWNER_EMAIL) {
                     alert(`🚫 접근 권한이 없습니다!\n\n현재 계정: ${user.email}\n이 앱은 오직 지정된 관리자 계정만 사용할 수 있습니다.`);
-                    await signOut(auth); // 즉시 강제 로그아웃
+                    await signOut(auth);
                     return;
                 }
 
-                // 본인 계정이 맞을 때만 앱 화면 열기
                 loginScreen.style.display = 'none';
                 appScreen.style.display = 'block';
                 if(userEmailDisplay) userEmailDisplay.textContent = `접속 계정: ${user.email}`;
 
-                // 클라우드 데이터 불러오기 실행
                 await loadCloudDataAndInit();
             } else {
-                // 로그아웃 상태일 때
                 loginScreen.style.display = 'flex';
                 appScreen.style.display = 'none';
             }
@@ -134,7 +130,6 @@
             color: #333;
         }
 
-        /* 로그인 화면 스타일 */
         #login-screen {
             display: flex;
             flex-direction: column;
@@ -157,7 +152,6 @@
         }
         .google-login-btn:hover { background-color: #f7fafc; }
 
-        /* 메인 앱 화면 스타일 */
         #app-screen { display: none; width: 100%; max-width: 980px; background-color: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 30px; }
         .header { text-align: center; margin-bottom: 25px; position: relative; }
         .header h1 { font-size: 24px; margin-bottom: 8px; color: #1a365d; }
@@ -244,7 +238,7 @@
     </button>
 </div>
 
-<!-- 2. 실제 메인 앱 화면 (로그인 후 보임) -->
+<!-- 2. 실제 메인 앱 화면 -->
 <div id="app-screen">
     <div class="user-info-bar">
         <span id="user-email-display">접속 계정 확인 중...</span>
@@ -285,6 +279,7 @@
         }, 500);
     }
 
+    // [안전장치 적용] 빈 칸 때문에 기존 기록이 지워지지 않도록 수정된 수집 함수
     function collectCurrentUIInputs() {
         window.strategies.forEach(strat => {
             let dateEl = document.getElementById(`date-${strat.id}`);
@@ -293,21 +288,30 @@
             let dateVal = dateEl.value;
             let multVal = multEl ? (parseFloat(multEl.value) || 1) : 1;
             
-            if(!window.allData[dateVal]) window.allData[dateVal] = {};
-            window.allData[dateVal][strat.id] = { mult: multVal, buys: [], sells: [] };
-
+            let buys = [];
             document.querySelectorAll(`#buy-container-${strat.id} .order-row`).forEach(row => {
                 let p = row.querySelector('.buy-price').value;
                 let q = row.querySelector('.buy-qty').value;
-                window.allData[dateVal][strat.id].buys.push({ price: p, qty: q });
+                if(p !== '' || q !== '') {
+                    buys.push({ price: p, qty: q });
+                }
             });
 
+            let sells = [];
             document.querySelectorAll(`#sell-container-${strat.id} .order-row`).forEach(row => {
                 let p = row.querySelector('.sell-price').value;
                 let q = row.querySelector('.sell-qty').value;
                 let m = row.querySelector('.sell-moc').checked;
-                window.allData[dateVal][strat.id].sells.push({ price: p, qty: q, isMoc: m });
+                if(p !== '' || q !== '' || m) {
+                    sells.push({ price: p, qty: q, isMoc: m });
+                }
             });
+
+            // 값이 실제로 존재할 때만 저장하여 백그라운드 탭이 기존 데이터를 지우는 것 방지
+            if (buys.length > 0 || sells.length > 0) {
+                if(!window.allData[dateVal]) window.allData[dateVal] = {};
+                window.allData[dateVal][strat.id] = { mult: multVal, buys: buys, sells: sells };
+            }
         });
     }
 
@@ -531,7 +535,7 @@
     };
 
     window.saveStrategyDailyOrders = async function(stratId) {
-        saveData();
+        collectCurrentUIInputs();
         await window.saveCloudDataInstant();
         let dateVal = document.getElementById(`date-${stratId}`).value;
         let strat = window.strategies.find(s => s.id === stratId);

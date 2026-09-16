@@ -33,7 +33,6 @@
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
 
-        // 전역 함수 등록
         window.loginWithGoogle = async function() {
             try {
                 await signInWithPopup(auth, provider);
@@ -50,7 +49,6 @@
             }
         };
 
-        // 로그인 상태 감지 및 보안 이메일 검증
         onAuthStateChanged(auth, async (user) => {
             const loginScreen = document.getElementById('login-screen');
             const appScreen = document.getElementById('app-screen');
@@ -131,17 +129,8 @@
         }
 
         #login-screen {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #fff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center;
         }
         #login-screen h2 { color: #1a365d; margin-bottom: 10px; font-size: 22px; }
         #login-screen p { color: #666; font-size: 13px; margin-bottom: 25px; }
@@ -216,7 +205,7 @@
         .balance-table tfoot td { background-color: #edf2f7; font-weight: bold; color: #1a365d; }
         .balance-table input { width: 100%; height: 28px; padding: 2px 4px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; font-size: 11px; background-color: #fff; }
 
-        .krw-summary-box { margin-top: 12px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px; padding: 12px 15px; font-size: 13px; color: #276749; display: flex; justify-content: space-between; align-items: center; }
+        .krw-summary-box { margin-top: 12px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px; padding: 12px 15px; font-size: 13px; color: #276749; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; }
         .krw-summary-box b { font-size: 15px; color: #22543d; }
 
         .history-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
@@ -845,8 +834,19 @@
 
         tfoot.innerHTML = `<tr><td>합계</td><td style="color:#e53e3e;">${totalShares}</td><td>${totalShares > 0 ? '$' + totalAvgPrice.toFixed(2) : '-'}</td><td style="color:#2b6cb0;">$${totalCash.toFixed(2)}</td><td style="color:#1a365d;">$${totalValUSD.toFixed(2)}</td><td style="color:${totProfit>=0?'#e53e3e':'#3182ce'}">$${totProfit.toFixed(2)}</td><td style="color:${totRet>=0?'#e53e3e':'#3182ce'}">${totRet >= 0 ? '▲' : '▼'}${Math.abs(totRet).toFixed(1)}%</td><td>$${totalInit.toFixed(2)}</td></tr>`;
 
+        // 전일 대비 환산액 차액 계산
+        let prevRecordForDiff = pastRecords.length > 0 ? pastRecords[pastRecords.length - 1] : null;
+        let diffKRW = prevRecordForDiff ? (totalValKRW - prevRecordForDiff.totalValKRW) : 0;
+        let diffPct = prevRecordForDiff && prevRecordForDiff.totalValKRW > 0 ? (diffKRW / prevRecordForDiff.totalValKRW) * 100 : 0;
+
+        let diffSign = diffKRW >= 0 ? '▲' : '▼';
+        let diffColor = diffKRW >= 0 ? '#e53e3e' : '#3182ce';
+        let diffHtml = prevRecordForDiff ? 
+            `전일 대비: <span style="color:${diffColor}; font-weight:bold;">${diffSign} ₩${Math.abs(diffKRW).toLocaleString('ko-KR', {maximumFractionDigits: 0})} (${Math.abs(diffPct).toFixed(2)}%)</span>` : 
+            `<span style="color:#888;">(전일 기록 없음)</span>`;
+
         if (krwDisplay) {
-            krwDisplay.innerHTML = `<div class="krw-summary-box"><span>💱 <b>원화 환산액</b> (₩${exchangeRate.toLocaleString()}/$1)</span><b>￦${totalValKRW.toLocaleString('ko-KR', {maximumFractionDigits: 0})}</b></div>`;
+            krwDisplay.innerHTML = `<div class="krw-summary-box"><span>💱 <b>원화 환산액</b> (₩${exchangeRate.toLocaleString()}/$1) &nbsp;|&nbsp; ${diffHtml}</span><b>￦${totalValKRW.toLocaleString('ko-KR', {maximumFractionDigits: 0})}</b></div>`;
         }
     };
 
@@ -872,7 +872,17 @@
 
         let totProfit = totalValUSD - totalInit, totRet = totalInit > 0 ? (totProfit / totalInit) * 100 : 0;
         let totalValKRW = totalValUSD * exchangeRate;
-        let recordItem = { date, closePrice, exchangeRate, totalSh, totalValUSD, totalValKRW, totProfit, totRet, details };
+
+        // 저장 전 시점의 직전 기록과 비교하여 차액 산출
+        let tempHistory = window.historyData.filter(h => h.date !== date);
+        tempHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+        let pastRecords = tempHistory.filter(h => h.date < date);
+        let prevRecord = pastRecords.length > 0 ? pastRecords[pastRecords.length - 1] : null;
+
+        let diffKRW = prevRecord ? (totalValKRW - prevRecord.totalValKRW) : 0;
+        let diffPct = prevRecord && prevRecord.totalValKRW > 0 ? (diffKRW / prevRecord.totalValKRW) * 100 : 0;
+
+        let recordItem = { date, closePrice, exchangeRate, totalSh, totalValUSD, totalValKRW, diffKRW, diffPct, totProfit, totRet, details };
         
         let existingIndex = window.historyData.findIndex(h => h.date === date);
         if (existingIndex >= 0) window.historyData[existingIndex] = recordItem;
@@ -919,7 +929,6 @@
                 let d = item.details[key], color = chartColors[idx % chartColors.length];
                 let weight = totalVal > 0 ? ((d.valUSD / totalVal) * 100).toFixed(1) : 0;
                 
-                // 도넛 차트 각도 계산
                 let pct = totalVal > 0 ? (d.valUSD / totalVal) : 0;
                 if (pct > 0) {
                     let startAngle = currentAngle;
@@ -935,6 +944,15 @@
             let conicStyle = gradientStops.length > 0 ? `background: conic-gradient(${gradientStops.join(', ')});` : 'background: #edf2f7;';
             let isSelected = (item.date === recordDate);
 
+            // 히스토리 카드 내 전일 대비 차액 표시 문자열 생성
+            let diffHtml = '';
+            if (item.diffKRW !== undefined) {
+                let sign = item.diffKRW >= 0 ? '▲' : '▼';
+                let color = item.diffKRW >= 0 ? '#e53e3e' : '#3182ce';
+                let pctStr = item.diffPct !== undefined ? `(${Math.abs(item.diffPct).toFixed(2)}%)` : '';
+                diffHtml = ` <span style="color:${color}; font-size:12px;">(전일 대비 ${sign} ₩${Math.abs(item.diffKRW).toLocaleString('ko-KR', {maximumFractionDigits: 0})} ${pctStr})</span>`;
+            }
+
             container.innerHTML += `
                 <div class="history-card" style="${isSelected ? 'border: 2px solid #2b6cb0; background-color: #f7fafc;' : ''}">
                     <div class="history-header" style="${isSelected ? 'color: #2b6cb0;' : 'color: #4a5568;'}">
@@ -943,7 +961,7 @@
                     </div>
                     <div class="history-body-grid">
                         <div class="history-info-side">
-                            <b>총 수량:</b> ${item.totalSh}주 | <b>평가금액:</b> $${item.totalValUSD.toFixed(2)} (<b>￦${(item.totalValKRW || 0).toLocaleString()}</b>)<br>
+                            <b>총 수량:</b> ${item.totalSh}주 | <b>평가금액:</b> $${item.totalValUSD.toFixed(2)} (<b>￦${(item.totalValKRW || 0).toLocaleString()}</b>${diffHtml})<br>
                             <b>손익:</b> <span style="color:${item.totProfit>=0?'#e53e3e':'#3182ce'}">$${item.totProfit.toFixed(2)} (${item.totRet >= 0 ? '▲' : '▼'}${Math.abs(item.totRet).toFixed(1)}%)</span>
                             <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #edf2f7;">${detailHtml}</div>
                         </div>

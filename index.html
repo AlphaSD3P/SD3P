@@ -350,7 +350,7 @@
 <div class="container">
     <div class="header">
         <h1>통합 퉁치기 & 잔고 일별 기록</h1>
-        <p>LOC/MOC 종가 기준 자동 체결 시뮬레이션 및 잔고 연동 시스템 (REV.1.7)</p>
+        <p>LOC/MOC 종가 기준 자동 체결 시뮬레이션 및 잔고 연동 시스템 (REV.1.8)</p>
     </div>
 
     <!-- 탭 버튼 -->
@@ -536,12 +536,19 @@
             </div>
         `;
 
+        // 접속 시점의 오늘 날짜(YYYY-MM-DD)를 자동으로 계산하여 기본값으로 설정
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+
         strategies.forEach(strat => {
             let dateInput = document.getElementById(`date-${strat.id}`);
-            if(dateInput) dateInput.value = "2026-09-10";
+            if(dateInput) dateInput.value = todayStr;
         });
-        if(document.getElementById('target-calc-date')) document.getElementById('target-calc-date').value = "2026-09-10";
-        if(document.getElementById('record-date')) document.getElementById('record-date').value = "2026-09-10";
+        if(document.getElementById('target-calc-date')) document.getElementById('target-calc-date').value = todayStr;
+        if(document.getElementById('record-date')) document.getElementById('record-date').value = todayStr;
 
         loadDataForDate(null);
         renderStrategyManageList();
@@ -737,7 +744,6 @@
         calculateTotalNet();
     }
 
-    // 결과보기 탭의 기법별 입력 데이터 히스토리 삭제 기능
     function deleteStratHistoryItem(dateStr) {
         if (!confirm(`[${dateStr}] 해당 날짜의 주문 기록을 삭제하시겠습니까?`)) return;
         let allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
@@ -951,7 +957,6 @@
 
         let exactRecord = history.find(h => h.date === recordDate);
         
-        // 환율 필드의 사용자 수정 제어를 위한 로직 보완
         let rateInput = document.getElementById('record-exchange-rate');
         let closeInput = document.getElementById('record-close-price');
 
@@ -986,14 +991,12 @@
         let dayOrders = allOrdersData[recordDate] || {};
 
         strategies.forEach(strat => {
-            // 등록된 기록이 없거나 최신 등록된 기록 날짜 이전 조회 시 모두 0으로 셋팅
             let base = { shares: 0, avgPrice: 0, cash: 0, initCash: 0 }; 
 
             if (exactRecord && exactRecord.details && exactRecord.details[strat.id]) {
                 let d = exactRecord.details[strat.id];
                 base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
             } else if (latestRecord && recordDate > latestRecord.date) {
-                // 일별누적히스토리 등록 최신 날짜 이후의 날짜로 조회하는 경우, 최신날짜 정보를 기준(base)으로 불러옴
                 if (latestRecord.details && latestRecord.details[strat.id]) {
                     let d = latestRecord.details[strat.id];
                     base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
@@ -1201,7 +1204,6 @@
 
         localStorage.setItem('4strat_history_v13', JSON.stringify(history));
         
-        // 데이터 저장 직후 해당 날짜 입력 필드의 lastDate 캐시를 갱신하여 수정 내용이 유지되도록 함
         if(document.getElementById('record-exchange-rate')) {
             document.getElementById('record-exchange-rate').dataset.lastDate = date;
         }

@@ -3,7 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4대 기법 통합 퉁치기 & 잔고 일별 기록</title>
+    <title>4대 기법 통합 퉁치기 & 잔고 일별 기록 (클라우드 연동)</title>
+    <!-- Firebase SDK 불러오기 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // ==========================================
+        // [주의] 아래 firebaseConfig 정보를 본인 계정 정보로 꼭 수정하세요!
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDzq_7krfNpqmOtv2O07m0TZ5kMAqzXBAo",
+            authDomain: "sd3p-investing.firebaseapp.com",
+            projectId: "sd3p-investing",
+            storageBucket: "sd3p-investing.firebasestorage.app",
+            messagingSenderId: "387594166935",
+            appId: "1:387594166935:web:0a4284d6e192e8611bffd2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 전역으로 클라우드 함수 노출
+        window.cloudDB = { db, doc, getDoc, setDoc };
+        window.isCloudLoaded = false;
+
+        // 앱 시작 시 클라우드 데이터 불러오기
+        window.loadCloudData(async function() {
+            await initAppFromCloud();
+        });
+    </script>
+
     <style>
         * { box-sizing: border-box; }
         body {
@@ -22,40 +52,16 @@
             max-width: 980px;
             padding: 30px;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 25px;
-        }
+        .header { text-align: center; margin-bottom: 25px; }
         .header h1 { font-size: 26px; margin-bottom: 8px; color: #1a365d; }
         .header p { font-size: 13px; color: #888; }
 
-        /* 탭 디자인 */
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 2px;
-        }
-        .tab-btn {
-            padding: 10px 15px;
-            background: none;
-            border: none;
-            font-size: 13px;
-            font-weight: bold;
-            color: #888;
-            cursor: pointer;
-            text-align: center;
-        }
-        .tab-btn.active {
-            color: #2b6cb0;
-            border-bottom: 3px solid #2b6cb0;
-            margin-bottom: -2px;
-        }
+        .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; flex-wrap: wrap; gap: 2px; }
+        .tab-btn { padding: 10px 15px; background: none; border: none; font-size: 13px; font-weight: bold; color: #888; cursor: pointer; text-align: center; }
+        .tab-btn.active { color: #2b6cb0; border-bottom: 3px solid #2b6cb0; margin-bottom: -2px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* 공통 컨트롤 박스 */
         .control-box {
             background-color: #f7fafc;
             border: 1px solid #e2e8f0;
@@ -68,165 +74,46 @@
             gap: 10px;
             flex-wrap: wrap;
         }
-        .control-box label {
-            font-size: 13px;
-            font-weight: bold;
-            color: #4a5568;
-        }
-        .control-box input {
-            padding: 6px;
-            border: 1px solid #cbd5e0;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 14px;
-            outline: none;
-        }
+        .control-box label { font-size: 13px; font-weight: bold; color: #4a5568; }
+        .control-box input { padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px; text-align: center; font-size: 14px; outline: none; }
 
-        /* 주문표 디자인 */
-        .section-title {
-            font-size: 15px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-        }
+        .section-title { font-size: 15px; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; }
         .title-buy { color: #e53e3e; }
         .title-buy::before { content: ""; display: inline-block; width: 3px; height: 15px; background-color: #e53e3e; margin-right: 8px; }
         .title-sell { color: #3182ce; margin-top: 25px; }
         .title-sell::before { content: ""; display: inline-block; width: 3px; height: 15px; background-color: #3182ce; margin-right: 8px; }
         
-        .order-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            gap: 10px;
-        }
-        .order-num {
-            font-size: 12px;
-            color: #aaa;
-            width: 15px;
-            text-align: center;
-        }
-        .input-group {
-            flex: 1;
-            display: flex;
-            gap: 10px;
-        }
+        .order-row { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+        .order-num { font-size: 12px; color: #aaa; width: 15px; text-align: center; }
+        .input-group { flex: 1; display: flex; gap: 10px; }
         input[type="number"], input[type="date"], input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 14px;
-            outline: none;
+            width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 14px; outline: none;
         }
         input:focus { border-color: #3182ce; }
-        input::placeholder { color: #bbb; }
         
-        .moc-check {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            color: #888;
-            width: 30px;
-        }
-        .delete-btn {
-            background: none;
-            border: none;
-            color: #ccc;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 0 5px;
-            line-height: 1;
-        }
+        .moc-check { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #888; width: 30px; }
+        .delete-btn { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0 5px; line-height: 1; }
         .delete-btn:hover { color: #e53e3e; }
         
-        .add-btn {
-            width: 100%;
-            padding: 12px;
-            background-color: #f8f9fa;
-            border: 1px dashed #ccc;
-            border-radius: 6px;
-            color: #666;
-            font-size: 13px;
-            cursor: pointer;
-            margin-top: 5px;
-        }
+        .add-btn { width: 100%; padding: 12px; background-color: #f8f9fa; border: 1px dashed #ccc; border-radius: 6px; color: #666; font-size: 13px; cursor: pointer; margin-top: 5px; }
         .add-btn:hover { background-color: #f1f3f5; }
 
-        /* 버튼 및 결과 디자인 */
         .execute-btn {
-            width: 100%;
-            padding: 16px;
-            background-color: #2b6cb0;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%; padding: 16px; background-color: #2b6cb0; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .execute-btn:hover { background-color: #2c5282; }
 
-        .result-box {
-            margin-top: 20px;
-            padding: 20px;
-            background-color: #f8f9fa;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .dual-tables-container {
-            display: flex;
-            gap: 15px;
-            align-items: flex-start;
-        }
-        .order-column {
-            flex: 1;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px;
-            min-height: 200px;
-        }
-        .column-title {
-            font-size: 14px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 10px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #edf2f7;
-        }
+        .result-box { margin-top: 20px; padding: 20px; background-color: #f8f9fa; border: 1px solid #eee; border-radius: 8px; display: none; }
+        .dual-tables-container { display: flex; gap: 15px; align-items: flex-start; }
+        .order-column { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; min-height: 200px; }
+        .column-title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #edf2f7; }
         .title-sell-col { color: #2b6cb0; }
         .title-buy-col { color: #c53030; }
 
-        .order-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 7px 10px;
-            margin-bottom: 5px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: bold;
-            border: 1px solid #cbd5e0;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-        }
+        .order-card { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; margin-bottom: 5px; border-radius: 6px; font-size: 13px; font-weight: bold; border: 1px solid #cbd5e0; }
         .card-sell { color: #2b6cb0; }
         .card-buy { color: #c53030; }
-
-        .dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-        }
+        .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .dot-sell { background-color: #3182ce; }
         .dot-buy { background-color: #e53e3e; }
 
@@ -234,115 +121,24 @@
         .row-yellow { background: linear-gradient(to bottom, #fefce8 0%, #fef9c3 100%); border-color: #fde047; }
         .empty-slot { text-align: center; color: #aaa; font-size: 12px; padding: 20px 0; }
 
-        .cash-needed-box {
-            margin-top: 20px;
-            background: #ebf8ff;
-            border: 1px solid #90cdf4;
-            border-radius: 6px;
-            padding: 15px;
-            font-size: 13px;
-            color: #2b6cb0;
-            line-height: 1.5;
-        }
+        .cash-needed-box { margin-top: 20px; background: #ebf8ff; border: 1px solid #90cdf4; border-radius: 6px; padding: 15px; font-size: 13px; color: #2b6cb0; line-height: 1.5; }
         .cash-needed-box b { font-size: 15px; color: #1a365d; }
 
-        /* 잔고 테이블 스타일 */
-        .balance-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            background: #fff;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #cbd5e0;
-            table-layout: fixed;
-        }
-        .balance-table th, .balance-table td {
-            border: 1px solid #cbd5e0;
-            padding: 6px 3px;
-            text-align: center;
-            font-size: 11px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+        .balance-table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e0; table-layout: fixed; }
+        .balance-table th, .balance-table td { border: 1px solid #cbd5e0; padding: 6px 3px; text-align: center; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .balance-table th { background-color: #f7fafc; color: #4a5568; font-weight: bold; }
         .balance-table tfoot td { background-color: #edf2f7; font-weight: bold; color: #1a365d; }
-        .balance-table input {
-            width: 100%;
-            height: 28px;
-            padding: 2px 4px;
-            border: 1px solid #cbd5e0;
-            border-radius: 4px;
-            text-align: center;
-            font-size: 11px;
-            background-color: #fff;
-        }
+        .balance-table input { width: 100%; height: 28px; padding: 2px 4px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; font-size: 11px; background-color: #fff; }
 
-        .krw-summary-box {
-            margin-top: 12px;
-            background: #f0fff4;
-            border: 1px solid #9ae6b4;
-            border-radius: 6px;
-            padding: 12px 15px;
-            font-size: 13px;
-            color: #276749;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .krw-summary-box { margin-top: 12px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px; padding: 12px 15px; font-size: 13px; color: #276749; display: flex; justify-content: space-between; align-items: center; }
         .krw-summary-box b { font-size: 15px; color: #22543d; }
 
-        .history-card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        .history-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #edf2f7;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
-            font-weight: bold;
-            color: #2b6cb0;
-            font-size: 14px;
-        }
-        .history-body-grid {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        .history-info-side {
-            flex: 1.5;
-            font-size: 13px;
-            color: #4a5568;
-            line-height: 1.6;
-        }
-        .history-chart-side {
-            flex: 0.9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f8f9fa;
-            border: 1px solid #edf2f7;
-            border-radius: 8px;
-            padding: 10px;
-        }
-        
-        .strat-manage-box {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
+        .history-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; color: #2b6cb0; font-size: 14px; }
+        .history-body-grid { display: flex; gap: 15px; align-items: center; }
+        .history-info-side { flex: 1.5; font-size: 13px; color: #4a5568; line-height: 1.6; }
+        .history-chart-side { flex: 0.9; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 1px solid #edf2f7; border-radius: 8px; padding: 10px; }
+        .strat-manage-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
     </style>
 </head>
 <body>
@@ -350,32 +146,109 @@
 <div class="container">
     <div class="header">
         <h1>통합 퉁치기 & 잔고 일별 기록</h1>
-        <p>LOC/MOC 종가 기준 자동 체결 시뮬레이션 및 잔고 연동 시스템 (REV.1.8)</p>
+        <p>클라우드 실시간 동기화 시스템 (CLOUD REV.1.9)</p>
     </div>
 
-    <!-- 탭 버튼 -->
     <div class="tabs" id="tab-buttons"></div>
-
-    <!-- 각 기법별 입력 화면 및 결과/잔고 화면 -->
     <div id="tab-contents"></div>
 </div>
 
 <script>
-    let strategies = JSON.parse(localStorage.getItem('4strat_config_v13')) || [
-        { id: 'strat1', name: '스위치', defaultMult: 1, defaultCash: 72134.02, defaultShares: 0, defaultAvg: 0, defaultInit: 60000 },
-        { id: 'strat2', name: '동파', defaultMult: 6, defaultCash: 68490.00, defaultShares: 90, defaultAvg: 125.87, defaultInit: 60000 },
-        { id: 'strat3', name: '3쥐', defaultMult: 6, defaultCash: 49428.00, defaultShares: 12, defaultAvg: 123.31, defaultInit: 60000 },
-        { id: 'strat4', name: '펑그마', defaultMult: 1, defaultCash: 5310.41, defaultShares: 1, defaultAvg: 108.89, defaultInit: 5000 },
-        { id: 'strat5', name: '방어', defaultMult: 1, defaultCash: 50000.00, defaultShares: 0, defaultAvg: 0, defaultInit: 50000 }
-    ];
-
+    let strategies = [];
+    let allData = {};
+    let history = [];
     const chartColors = ['#2b6cb0', '#e53e3e', '#d69e2e', '#38a169', '#805ad5', '#319795', '#dd6b20'];
 
-    function saveStrategiesConfig() {
-        localStorage.setItem('4strat_config_v13', JSON.stringify(strategies));
+    // 클라우드에서 데이터 불러오기 함수
+    window.loadCloudData = async function(callback) {
+        try {
+            const docRef = window.cloudDB.doc(window.cloudDB.db, "appData", "stockUserConfig");
+            const docSnap = await window.cloudDB.getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const cloudVal = docSnap.data();
+                strategies = cloudVal.strategies || getDefaultStrategies();
+                allData = cloudVal.allData || {};
+                history = cloudVal.history || [];
+            } else {
+                strategies = getDefaultStrategies();
+                allData = {};
+                history = [];
+                await saveCloudDataInstant(); // 최초 기본값 생성
+            }
+        } catch (e) {
+            console.error("클라우드 로드 실패, 로컬 데이터로 대체:", e);
+            strategies = JSON.parse(localStorage.getItem('4strat_config_v13')) || getDefaultStrategies();
+            allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
+            history = JSON.parse(localStorage.getItem('4strat_history_v13')) || [];
+        }
+        if (callback) callback();
+    };
+
+    function getDefaultStrategies() {
+        return [
+            { id: 'strat1', name: '스위치', defaultMult: 1, defaultCash: 72134.02, defaultShares: 0, defaultAvg: 0, defaultInit: 60000 },
+            { id: 'strat2', name: '동파', defaultMult: 6, defaultCash: 68490.00, defaultShares: 90, defaultAvg: 125.87, defaultInit: 60000 },
+            { id: 'strat3', name: '3쥐', defaultMult: 6, defaultCash: 49428.00, defaultShares: 12, defaultAvg: 123.31, defaultInit: 60000 },
+            { id: 'strat4', name: '펑그마', defaultMult: 1, defaultCash: 5310.41, defaultShares: 1, defaultAvg: 108.89, defaultInit: 5000 },
+            { id: 'strat5', name: '방어', defaultMult: 1, defaultCash: 50000.00, defaultShares: 0, defaultAvg: 0, defaultInit: 50000 }
+        ];
     }
 
-    function initUI() {
+    // 클라우드에 실시간 저장 함수
+    async function saveCloudDataInstant() {
+        try {
+            await window.cloudDB.setDoc(window.cloudDB.doc(window.cloudDB.db, "appData", "stockUserConfig"), {
+                strategies,
+                allData,
+                history
+            });
+        } catch (e) {
+            console.error("클라우드 저장 실패:", e);
+        }
+        // 백업용으로 로컬에도 저장
+        localStorage.setItem('4strat_config_v13', JSON.stringify(strategies));
+        localStorage.setItem('4strat_tungchigi_data_v13', JSON.stringify(allData));
+        localStorage.setItem('4strat_history_v13', JSON.stringify(history));
+    }
+
+    // 데이터 저장 트리거 (디바운스 적용으로 연속 저장 방지)
+    let saveTimeout = null;
+    function saveData() {
+        collectCurrentUIInputs();
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            saveCloudDataInstant();
+        }, 500);
+    }
+
+    function collectCurrentUIInputs() {
+        strategies.forEach(strat => {
+            let dateEl = document.getElementById(`date-${strat.id}`);
+            let multEl = document.getElementById(`mult-${strat.id}`);
+            if(!dateEl) return;
+            let dateVal = dateEl.value;
+            let multVal = multEl ? (parseFloat(multEl.value) || 1) : 1;
+            
+            if(!allData[dateVal]) allData[dateVal] = {};
+            allData[dateVal][strat.id] = { mult: multVal, buys: [], sells: [] };
+
+            document.querySelectorAll(`#buy-container-${strat.id} .order-row`).forEach(row => {
+                let p = row.querySelector('.buy-price').value;
+                let q = row.querySelector('.buy-qty').value;
+                allData[dateVal][strat.id].buys.push({ price: p, qty: q });
+            });
+
+            document.querySelectorAll(`#sell-container-${strat.id} .order-row`).forEach(row => {
+                let p = row.querySelector('.sell-price').value;
+                let q = row.querySelector('.sell-qty').value;
+                let m = row.querySelector('.sell-moc').checked;
+                allData[dateVal][strat.id].sells.push({ price: p, qty: q, isMoc: m });
+            });
+        });
+    }
+
+    async function initAppFromCloud() {
         const tabBtns = document.getElementById('tab-buttons');
         const tabContents = document.getElementById('tab-contents');
 
@@ -417,7 +290,7 @@
                     <button class="add-btn" onclick="addRow('${strat.id}', 'sell')">+ 매도 추가</button>
                     
                     <div style="margin-top: 15px;">
-                        <button class="execute-btn" onclick="saveStrategyDailyOrders('${strat.id}')" style="background-color:#38a169; padding: 12px; font-size: 14px;">💾 ${strat.name} 현재 날짜 주문 기록 저장/수정</button>
+                        <button class="execute-btn" onclick="saveStrategyDailyOrders('${strat.id}')" style="background-color:#38a169; padding: 12px; font-size: 14px;">💾 ${strat.name} 현재 날짜 주문 기록 클라우드 저장</button>
                     </div>
                 </div>
             `;
@@ -427,7 +300,6 @@
         const balIdx = strategies.length + 1;
         const setIdx = strategies.length + 2;
 
-        // 결과보기 탭
         tabBtns.innerHTML += `<button class="tab-btn" onclick="switchTab(${resIdx})" style="color:#e53e3e;">📊 결과보기</button>`;
         tabContents.innerHTML += `
             <div class="tab-content" id="content-${resIdx}">
@@ -436,97 +308,64 @@
                     <label>조회할 날짜 선택:</label>
                     <input type="date" id="target-calc-date" onchange="calculateTotalNet()" style="width:150px;">
                 </div>
-                
                 <button class="execute-btn" onclick="calculateTotalNet()" style="margin-bottom: 15px;">선택 날짜 기준 퉁치기 실행</button>
-                
                 <div class="result-box" id="final-result-box">
                     <div class="dual-tables-container">
-                        <div class="order-column">
-                            <div class="column-title title-sell-col">🔵 매도 순주문 (LOC/MOC)</div>
-                            <div id="sell-result-list"></div>
-                        </div>
-                        <div class="order-column">
-                            <div class="column-title title-buy-col">🔴 매수 순주문 (LOC)</div>
-                            <div id="buy-result-list"></div>
-                        </div>
+                        <div class="order-column"><div class="column-title title-sell-col">🔵 매도 순주문 (LOC/MOC)</div><div id="sell-result-list"></div></div>
+                        <div class="order-column"><div class="column-title title-buy-col">🔴 매수 순주문 (LOC)</div><div id="buy-result-list"></div></div>
                     </div>
                     <div id="cash-needed-display"></div>
                 </div>
-
                 <hr style="margin: 25px 0; border:0; border-top:1px solid #eee;">
-                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="font-size:15px; color:#1a365d; margin:0;">📋 기법별 입력된 주문 내역 히스토리 (조회일 우선 정렬)</h3>
+                    <h3 style="font-size:15px; color:#1a365d; margin:0;">📋 기법별 입력된 주문 내역 히스토리</h3>
                     <button onclick="toggleStratHistoryViewMode()" id="strat-history-toggle-btn" style="padding: 5px 10px; font-size:12px; background:#edf2f7; border:1px solid #cbd5e0; border-radius:4px; cursor:pointer;">조회일만 보기 전환</button>
                 </div>
                 <div id="strat-input-history-container"></div>
             </div>
         `;
 
-        // 잔고 & 일별기록 탭
         tabBtns.innerHTML += `<button class="tab-btn" onclick="switchTab(${balIdx})" style="color:#2b6cb0;">📈 잔고&일별기록</button>`;
         tabContents.innerHTML += `
             <div class="tab-content" id="content-${balIdx}">
                 <div class="control-box" style="justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
-                    <div>
-                        <label>📅 기록 날짜</label>
-                        <input type="date" id="record-date" onchange="updateBalanceLive()" style="width:130px; margin-left:5px;">
-                    </div>
+                    <div><label>📅 기록 날짜</label><input type="date" id="record-date" onchange="updateBalanceLive()" style="width:130px; margin-left:5px;"></div>
                     <div style="display:flex; gap:15px; align-items:center;">
-                        <div>
-                            <label>💵 당일 종가($)</label>
-                            <input type="number" step="0.01" id="record-close-price" value="125.87" oninput="updateBalanceLive()" style="width:80px; margin-left:5px;">
-                        </div>
-                        <div>
-                            <label>💱 환율(원/달러)</label>
-                            <input type="number" step="0.01" id="record-exchange-rate" value="1350.00" oninput="updateBalanceLive()" style="width:90px; margin-left:5px;">
-                        </div>
+                        <div><label>💵 당일 종가($)</label><input type="number" step="0.01" id="record-close-price" value="125.87" oninput="updateBalanceLive()" style="width:80px; margin-left:5px;"></div>
+                        <div><label>💱 환율(원/달러)</label><input type="number" step="0.01" id="record-exchange-rate" value="1350.00" oninput="updateBalanceLive()" style="width:90px; margin-left:5px;"></div>
                     </div>
                 </div>
-
                 <table class="balance-table">
                     <thead>
                         <tr>
-                            <th style="width: 12%;">기법명</th>
-                            <th style="width: 11%;">보유수량</th>
-                            <th style="width: 12%;">평균가($)</th>
-                            <th style="width: 15%;">잔여달러($)</th>
-                            <th style="width: 15%;">평가총합($)</th>
-                            <th style="width: 13%;">평가손익($)</th>
-                            <th style="width: 10%;">수익률</th>
-                            <th style="width: 12%;">초기자금($)</th>
+                            <th style="width: 12%;">기법명</th><th style="width: 11%;">보유수량</th><th style="width: 12%;">평균가($)</th><th style="width: 15%;">잔여달러($)</th>
+                            <th style="width: 15%;">평가총합($)</th><th style="width: 13%;">평가손익($)</th><th style="width: 10%;">수익률</th><th style="width: 12%;">초기자금($)</th>
                         </tr>
                     </thead>
                     <tbody id="balance-tbody"></tbody>
                     <tfoot id="balance-tfoot"></tfoot>
                 </table>
-
                 <div id="krw-summary-display"></div>
-
                 <div style="margin-top:15px; display:flex; gap:10px; align-items:center;">
-                    <button class="execute-btn" onclick="saveDailyRecord()" style="background-color:#38a169; flex:1; margin-top:0;">💾 일별 잔고 기록 저장 (덮어쓰기)</button>
+                    <button class="execute-btn" onclick="saveDailyRecord()" style="background-color:#38a169; flex:1; margin-top:0;">💾 일별 잔고 클라우드 기록 저장</button>
                 </div>
                 <div style="margin-top:8px; font-size:12px; color:#555; display:flex; align-items:center; gap:5px; background:#f0f4f8; padding:8px 12px; border-radius:6px;">
                     <input type="checkbox" id="cascade-update-check" style="width:15px; height:15px; cursor:pointer;">
-                    <label for="cascade-update-check" style="cursor:pointer; font-weight:bold; color:#2b6cb0;">과거 날짜 수정 시, 이후 등록된 모든 일별 히스토리도 바뀐 데이터를 기준으로 연쇄 재계산(업데이트)하기</label>
+                    <label for="cascade-update-check" style="cursor:pointer; font-weight:bold; color:#2b6cb0;">과거 날짜 수정 시, 이후 등록된 히스토리도 연쇄 재계산하기</label>
                 </div>
-
                 <hr style="margin: 25px 0; border:0; border-top:1px solid #eee;">
-
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="font-size:15px; color:#1a365d; margin:0;">📜 일별 누적 히스토리</h3>
                     <button onclick="toggleBalanceHistoryViewMode()" id="balance-history-toggle-btn" style="padding: 5px 10px; font-size:12px; background:#edf2f7; border:1px solid #cbd5e0; border-radius:4px; cursor:pointer;">조회일만 보기 전환</button>
                 </div>
-
                 <div id="history-container"></div>
             </div>
         `;
 
-        // 기법 관리 탭
         tabBtns.innerHTML += `<button class="tab-btn" onclick="switchTab(${setIdx})" style="color:#d69e2e;">⚙️ 기법 관리</button>`;
         tabContents.innerHTML += `
             <div class="tab-content" id="content-${setIdx}">
-                <h2 style="font-size:16px; margin-bottom:15px; text-align:center; color:#1a365d;">⚙️ 매매기법 이름 수정 및 추가/삭제</h2>
+                <h2 style="font-size:16px; margin-bottom:15px; text-align:center; color:#1a365d;">⚙️ 매매기법 관리</h2>
                 <div id="strategy-manage-list"></div>
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <input type="text" id="new-strat-name" placeholder="추가할 새 기법 이름 입력" style="flex:1;">
@@ -536,12 +375,8 @@
             </div>
         `;
 
-        // 접속 시점의 오늘 날짜(YYYY-MM-DD)를 자동으로 계산하여 기본값으로 설정
         const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yyyy}-${mm}-${dd}`;
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
         strategies.forEach(strat => {
             let dateInput = document.getElementById(`date-${strat.id}`);
@@ -583,7 +418,7 @@
         `;
         container.appendChild(row);
         updateRowNumbers(stratId, type);
-        if(price === '' && qty === '') saveData(); 
+        if(price === '' && qty === '') saveData();
     }
 
     function removeRow(button, stratId, type) {
@@ -597,36 +432,7 @@
         rows.forEach((row, index) => row.querySelector('.order-num').textContent = index + 1);
     }
 
-    function saveData() {
-        let allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
-        strategies.forEach(strat => {
-            let dateEl = document.getElementById(`date-${strat.id}`);
-            let multEl = document.getElementById(`mult-${strat.id}`);
-            if(!dateEl) return;
-            let dateVal = dateEl.value;
-            let multVal = multEl ? (parseFloat(multEl.value) || 1) : 1;
-            
-            if(!allData[dateVal]) allData[dateVal] = {};
-            allData[dateVal][strat.id] = { mult: multVal, buys: [], sells: [] };
-
-            document.querySelectorAll(`#buy-container-${strat.id} .order-row`).forEach(row => {
-                let p = row.querySelector('.buy-price').value;
-                let q = row.querySelector('.buy-qty').value;
-                allData[dateVal][strat.id].buys.push({ price: p, qty: q });
-            });
-
-            document.querySelectorAll(`#sell-container-${strat.id} .order-row`).forEach(row => {
-                let p = row.querySelector('.sell-price').value;
-                let q = row.querySelector('.sell-qty').value;
-                let m = row.querySelector('.sell-moc').checked;
-                allData[dateVal][strat.id].sells.push({ price: p, qty: q, isMoc: m });
-            });
-        });
-        localStorage.setItem('4strat_tungchigi_data_v13', JSON.stringify(allData));
-    }
-
     function loadDataForDate(stratIdTarget) {
-        let allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
         strategies.forEach(strat => {
             if(stratIdTarget && strat.id !== stratIdTarget) return;
 
@@ -665,18 +471,20 @@
         loadDataForDate(stratId);
     }
 
-    function saveStrategyDailyOrders(stratId) {
+    async function saveStrategyDailyOrders(stratId) {
         saveData();
+        await saveCloudDataInstant();
         let dateVal = document.getElementById(`date-${stratId}`).value;
         let strat = strategies.find(s => s.id === stratId);
-        alert(`[${dateVal}] ${strat.name} 기법의 주문 기록이 저장/등록되었습니다.`);
+        alert(`[${dateVal}] ${strat.name} 주문 기록이 클라우드에 저장되었습니다.`);
     }
 
-    function resetAllData() {
-        if (!confirm("모든 입력 정보 및 히스토리가 초기화됩니다. 계속하시겠습니까?")) return;
-        localStorage.removeItem('4strat_config_v13');
-        localStorage.removeItem('4strat_tungchigi_data_v13');
-        localStorage.removeItem('4strat_history_v13');
+    async function resetAllData() {
+        if (!confirm("모든 데이터가 초기화됩니다. 계속하시겠습니까?")) return;
+        strategies = getDefaultStrategies();
+        allData = {};
+        history = [];
+        await saveCloudDataInstant();
         location.reload();
     }
 
@@ -688,51 +496,27 @@
             container.innerHTML += `
                 <div class="strat-manage-box">
                     <span style="font-weight:bold; width:30px;">#${index+1}</span>
-                    <input type="text" id="rename-${strat.id}" value="${strat.name}" style="flex:1;" oninput="updateStrategyName('${strat.id}', this.value)">
+                    <input type="text" value="${strat.name}" style="flex:1;" oninput="strategies[${index}].name=this.value; saveCloudDataInstant();">
                     <button class="delete-btn" onclick="deleteStrategy('${strat.id}')" style="font-size:16px; color:#e53e3e;">🗑️ 삭제</button>
                 </div>
             `;
         });
     }
 
-    function updateStrategyName(stratId, newName) {
-        let strat = strategies.find(s => s.id === stratId);
-        if(strat) {
-            strat.name = newName;
-            saveStrategiesConfig();
-        }
-    }
-
-    function addNewStrategy() {
+    async function addNewStrategy() {
         let nameInput = document.getElementById('new-strat-name');
         let name = nameInput.value.trim();
-        if(!name) {
-            alert("기법 이름을 입력해주세요.");
-            return;
-        }
-        let newId = 'strat_' + Date.now();
-        strategies.push({
-            id: newId,
-            name: name,
-            defaultMult: 1,
-            defaultCash: 50000,
-            defaultShares: 0,
-            defaultAvg: 0,
-            defaultInit: 50000
-        });
-        saveStrategiesConfig();
-        alert(`새 기법 '${name}'이(가) 추가되었습니다.`);
+        if(!name) { alert("기법 이름을 입력해주세요."); return; }
+        strategies.push({ id: 'strat_' + Date.now(), name: name, defaultMult: 1, defaultCash: 50000, defaultShares: 0, defaultAvg: 0, defaultInit: 50000 });
+        await saveCloudDataInstant();
         location.reload();
     }
 
-    function deleteStrategy(stratId) {
-        if(strategies.length <= 1) {
-            alert("최소 1개의 기법은 남아있어야 합니다.");
-            return;
-        }
-        if(!confirm("해당 기법을 삭제하시겠습니까? 관련 설정 및 데이터가 갱신됩니다.")) return;
+    async function deleteStrategy(stratId) {
+        if(strategies.length <= 1) { alert("최소 1개의 기법은 남아있어야 합니다."); return; }
+        if(!confirm("삭제하시겠습니까?")) return;
         strategies = strategies.filter(s => s.id !== stratId);
-        saveStrategiesConfig();
+        await saveCloudDataInstant();
         location.reload();
     }
 
@@ -744,11 +528,10 @@
         calculateTotalNet();
     }
 
-    function deleteStratHistoryItem(dateStr) {
-        if (!confirm(`[${dateStr}] 해당 날짜의 주문 기록을 삭제하시겠습니까?`)) return;
-        let allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
+    async function deleteStratHistoryItem(dateStr) {
+        if (!confirm(`[${dateStr}] 기록을 삭제하시겠습니까?`)) return;
         delete allData[dateStr];
-        localStorage.setItem('4strat_tungchigi_data_v13', JSON.stringify(allData));
+        await saveCloudDataInstant();
         calculateTotalNet();
         strategies.forEach(strat => {
             let dateEl = document.getElementById(`date-${strat.id}`);
@@ -758,23 +541,17 @@
 
     function calculateTotalNet() {
         let targetDate = document.getElementById('target-calc-date').value;
-        let allData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
         let dayData = allData[targetDate] || {};
-
-        let rawBuys = [];
-        let rawSells = [];
-        let hasValidInput = false;
+        let rawBuys = [], rawSells = [], hasValidInput = false;
 
         strategies.forEach(strat => {
             let stratData = dayData[strat.id];
             if(!stratData) return;
-
             let mult = stratData.mult || 1;
 
             if(stratData.buys) {
                 stratData.buys.forEach(b => {
-                    let price = parseFloat(b.price);
-                    let qty = parseInt(b.qty);
+                    let price = parseFloat(b.price), qty = parseInt(b.qty);
                     if(!isNaN(price) && !isNaN(qty) && qty > 0) {
                         hasValidInput = true;
                         qty = qty * mult;
@@ -782,12 +559,9 @@
                     }
                 });
             }
-
             if(stratData.sells) {
                 stratData.sells.forEach(s => {
-                    let price = parseFloat(s.price);
-                    let qty = parseInt(s.qty);
-                    let isMoc = s.isMoc;
+                    let price = parseFloat(s.price), qty = parseInt(s.qty), isMoc = s.isMoc;
                     if(!isNaN(qty) && qty > 0) {
                         hasValidInput = true;
                         qty = qty * mult;
@@ -808,18 +582,12 @@
 
         if (stratInputHistoryContainer) {
             stratInputHistoryContainer.innerHTML = '';
-            
             let allDates = Object.keys(allData).sort((a, b) => new Date(b) - new Date(a));
-            if (targetDate) {
+            if (targetDate && allData[targetDate]) {
                 allDates = allDates.filter(d => d !== targetDate);
-                if (allData[targetDate]) {
-                    allDates.unshift(targetDate);
-                }
+                allDates.unshift(targetDate);
             }
-
-            if (isStratHistoryAllView && targetDate) {
-                allDates = allDates.filter(d => d === targetDate);
-            }
+            if (isStratHistoryAllView && targetDate) allDates = allDates.filter(d => d === targetDate);
 
             if (allDates.length === 0) {
                 stratInputHistoryContainer.innerHTML = '<div class="empty-slot">저장된 주문 기록이 없습니다.</div>';
@@ -827,74 +595,53 @@
                 allDates.forEach(dStr => {
                     let dateData = allData[dStr] || {};
                     let isSelectedCard = (dStr === targetDate);
-                    
                     let stratCardsHtml = '';
+                    
                     strategies.forEach(strat => {
                         let sData = dateData[strat.id];
                         let mult = sData ? (sData.mult || 1) : 1;
                         let bList = sData && sData.buys ? sData.buys.filter(b => b.price && b.qty) : [];
                         let sList = sData && sData.sells ? sData.sells.filter(s => (s.price || s.isMoc) && s.qty) : [];
-
                         let buyStr = bList.length > 0 ? `<b>LOC:</b> ` + bList.map(b => `$${b.price} / ${b.qty}주`).join(', ') : '매수 주문 없음';
-                        
                         let sellStr = '매도 주문 없음';
                         if (sList.length > 0) {
-                            let locItems = sList.filter(s => !s.isMoc);
-                            let mocItems = sList.filter(s => s.isMoc);
+                            let loc = sList.filter(s => !s.isMoc), moc = sList.filter(s => s.isMoc);
                             let parts = [];
-                            if (locItems.length > 0) {
-                                parts.push(`<b>LOC:</b> ` + locItems.map(s => `$${s.price} / ${s.qty}주`).join(', '));
-                            }
-                            if (mocItems.length > 0) {
-                                parts.push(`<b>MOC:</b> ` + mocItems.map(s => `${s.qty}주`).join(', '));
-                            }
+                            if (loc.length) parts.push(`<b>LOC:</b> ` + loc.map(s => `$${s.price} / ${s.qty}주`).join(', '));
+                            if (moc.length) parts.push(`<b>MOC:</b> ` + moc.map(s => `${s.qty}주`).join(', '));
                             sellStr = parts.join(' | ');
                         }
-
-                        stratCardsHtml += `
-                            <div style="background:#f8f9fa; border:1px solid #edf2f7; border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:13px;">
-                                <div style="font-weight:bold; color:#1a365d; margin-bottom:4px;">
-                                    📌 ${strat.name} <span style="font-size:11px; color:#666; font-weight:normal;">(배율: ${mult}배)</span>
-                                </div>
-                                <div style="color:#e53e3e; margin-bottom:2px;">🔴 매수: ${buyStr}</div>
-                                <div style="color:#2b6cb0;">🔵 매도: ${sellStr}</div>
-                            </div>
-                        `;
+                        stratCardsHtml += `<div style="background:#f8f9fa; border:1px solid #edf2f7; border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:13px;">
+                            <div style="font-weight:bold; color:#1a365d; margin-bottom:4px;">📌 ${strat.name} <span style="font-size:11px; color:#666;">(배율: ${mult}배)</span></div>
+                            <div style="color:#e53e3e; margin-bottom:2px;">🔴 매수: ${buyStr}</div>
+                            <div style="color:#2b6cb0;">🔵 매도: ${sellStr}</div>
+                        </div>`;
                     });
 
                     stratInputHistoryContainer.innerHTML += `
                         <div class="history-card" style="${isSelectedCard ? 'border: 2px solid #2b6cb0; background-color: #f7fafc;' : ''}">
                             <div class="history-header" style="${isSelectedCard ? 'color: #2b6cb0;' : 'color: #4a5568;'}">
-                                <span>📅 날짜: ${dStr} ${isSelectedCard ? '<b>(현재 조회/선택된 날짜)</b>' : ''}</span>
-                                <button onclick="deleteStratHistoryItem('${dStr}')" style="background:none; border:none; color:#e53e3e; cursor:pointer; font-weight:bold; font-size:13px;">삭제</button>
+                                <span>📅 날짜: ${dStr} ${isSelectedCard ? '<b>(선택된 날짜)</b>' : ''}</span>
+                                <button onclick="deleteStratHistoryItem('${dStr}')" style="background:none; border:none; color:#e53e3e; cursor:pointer; font-weight:bold;">삭제</button>
                             </div>
                             <div>${stratCardsHtml}</div>
-                        </div>
-                    `;
+                        </div>`;
                 });
             }
         }
 
-        if (!hasValidInput) {
-            resultBox.style.display = 'none';
-            return;
-        }
+        if (!hasValidInput) { resultBox.style.display = 'none'; return; }
 
         rawBuys.sort((a, b) => b - a);
         rawSells.sort((a, b) => a - b);
-
         let netOrders = { 'buy': {}, 'sell': {}, 'moc_sell': 0 };
         function addNet(type, price, qty) {
             if (price === 'MOC') netOrders.moc_sell += qty;
-            else {
-                let p = price.toFixed(2);
-                netOrders[type][p] = (netOrders[type][p] || 0) + qty;
-            }
+            else netOrders[type][price.toFixed(2)] = (netOrders[type][price.toFixed(2)] || 0) + qty;
         }
 
         while (rawBuys.length > 0 && rawSells.length > 0) {
-            let b = rawBuys[0];
-            let s = rawSells[0];
+            let b = rawBuys[0], s = rawSells[0];
             if (s === -1 || b >= s) {
                 rawBuys.shift(); rawSells.shift();
                 addNet('sell', b + 0.01, 1);
@@ -903,10 +650,7 @@
         }
 
         rawBuys.forEach(b => addNet('buy', b, 1));
-        rawSells.forEach(s => {
-            if (s === -1) addNet('sell', 'MOC', 1);
-            else addNet('sell', s, 1);
-        });
+        rawSells.forEach(s => s === -1 ? addNet('sell', 'MOC', 1) : addNet('sell', s, 1));
 
         let sellResults = [];
         for (let p in netOrders.sell) sellResults.push({ price: parseFloat(p), qty: netOrders.sell[p], isMoc: false });
@@ -919,29 +663,21 @@
 
         sellList.innerHTML = sellResults.length === 0 ? '<div class="empty-slot">매도 주문 없음</div>' : '';
         sellResults.forEach((item, index) => {
-            let bgClass = (index % 2 === 0) ? 'row-white' : 'row-yellow';
-            if (item.isMoc) {
-                sellList.innerHTML += `<div class="order-card card-sell ${bgClass}"><span><span class="dot dot-sell"></span><b>매도</b>·MOC</span><b>${item.qty}주</b></div>`;
-            } else {
-                sellList.innerHTML += `<div class="order-card card-sell ${bgClass}"><span><span class="dot dot-sell"></span><b>매도</b>·LOC $${item.price.toFixed(2)}</span><b>${item.qty}주</b></div>`;
-            }
+            let bg = index % 2 === 0 ? 'row-white' : 'row-yellow';
+            let txt = item.isMoc ? `매도·MOC` : `매도·LOC $${item.price.toFixed(2)}`;
+            sellList.innerHTML += `<div class="order-card card-sell ${bg}"><span><span class="dot dot-sell"></span><b>${txt}</b></span><b>${item.qty}주</b></div>`;
         });
 
         buyList.innerHTML = buyResults.length === 0 ? '<div class="empty-slot">매수 주문 없음</div>' : '';
         buyResults.forEach((item, index) => {
-            let bgClass = (index % 2 === 0) ? 'row-white' : 'row-yellow';
-            buyList.innerHTML += `<div class="order-card card-buy ${bgClass}"><span><span class="dot dot-buy"></span><b>매수</b>·LOC $${item.price.toFixed(2)}</span><b>${item.qty}주</b></div>`;
+            let bg = index % 2 === 0 ? 'row-white' : 'row-yellow';
+            buyList.innerHTML += `<div class="order-card card-buy ${bg}"><span><span class="dot dot-buy"></span><b>매수·LOC $${item.price.toFixed(2)}</b></span><b>${item.qty}주</b></div>`;
         });
 
         let finalBuyNeedMoney = 0;
-        for (let p in netOrders.buy) { finalBuyNeedMoney += parseFloat(p) * netOrders.buy[p]; }
+        for (let p in netOrders.buy) finalBuyNeedMoney += parseFloat(p) * netOrders.buy[p];
 
-        cashDisplay.innerHTML = `
-            <div class="cash-needed-box">
-                💰 <b>[${targetDate}] 퉁치기 체결 시 필요 예수금</b><br>
-                ➔ 약 <b>$${finalBuyNeedMoney.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b> 필요합니다.
-            </div>
-        `;
+        cashDisplay.innerHTML = `<div class="cash-needed-box">💰 <b>[${targetDate}] 체결 시 필요 예수금</b><br>➔ 약 <b>$${finalBuyNeedMoney.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b> 필요</div>`;
         resultBox.style.display = 'block';
     }
 
@@ -952,99 +688,61 @@
         if(!tbody || !tfoot) return;
         
         let recordDate = document.getElementById('record-date').value;
-        let history = JSON.parse(localStorage.getItem('4strat_history_v13')) || [];
         history.sort((a, b) => new Date(a.date) - new Date(b.date));
-
         let exactRecord = history.find(h => h.date === recordDate);
         
         let rateInput = document.getElementById('record-exchange-rate');
         let closeInput = document.getElementById('record-close-price');
 
         if (exactRecord) {
-            if (closeInput && closeInput.dataset.lastDate !== recordDate) {
-                closeInput.value = exactRecord.closePrice;
-                closeInput.dataset.lastDate = recordDate;
-            }
-            if (rateInput && rateInput.dataset.lastDate !== recordDate) {
-                rateInput.value = exactRecord.exchangeRate || 1350;
-                rateInput.dataset.lastDate = recordDate;
-            }
-        } else {
-            if (closeInput && closeInput.dataset.lastDate !== recordDate) {
-                closeInput.dataset.lastDate = recordDate;
-            }
-            if (rateInput && rateInput.dataset.lastDate !== recordDate) {
-                rateInput.dataset.lastDate = recordDate;
-            }
+            if (closeInput && closeInput.dataset.lastDate !== recordDate) { closeInput.value = exactRecord.closePrice; closeInput.dataset.lastDate = recordDate; }
+            if (rateInput && rateInput.dataset.lastDate !== recordDate) { rateInput.value = exactRecord.exchangeRate || 1350; rateInput.dataset.lastDate = recordDate; }
         }
 
         let closePrice = parseFloat(closeInput.value) || 0;
         let exchangeRate = parseFloat(rateInput.value) || 0;
-        
         let latestRecord = history.length > 0 ? history[history.length - 1] : null;
 
         tbody.innerHTML = '';
-        let totalShares = 0, totalCash = 0, totalValUSD = 0, totalInit = 0;
-        let totalWeightedCost = 0;
-
-        let allOrdersData = JSON.parse(localStorage.getItem('4strat_tungchigi_data_v13')) || {};
-        let dayOrders = allOrdersData[recordDate] || {};
+        let totalShares = 0, totalCash = 0, totalValUSD = 0, totalInit = 0, totalWeightedCost = 0;
+        let dayOrders = allData[recordDate] || {};
 
         strategies.forEach(strat => {
             let base = { shares: 0, avgPrice: 0, cash: 0, initCash: 0 }; 
-
             if (exactRecord && exactRecord.details && exactRecord.details[strat.id]) {
                 let d = exactRecord.details[strat.id];
                 base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
-            } else if (latestRecord && recordDate > latestRecord.date) {
-                if (latestRecord.details && latestRecord.details[strat.id]) {
-                    let d = latestRecord.details[strat.id];
-                    base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
-                }
+            } else if (latestRecord && recordDate > latestRecord.date && latestRecord.details && latestRecord.details[strat.id]) {
+                let d = latestRecord.details[strat.id];
+                base = { shares: d.shares, avgPrice: d.avgPrice, cash: d.cash, initCash: d.initCash };
             }
 
             let stratDayOrders = dayOrders[strat.id] || null;
             let mult = stratDayOrders ? (stratDayOrders.mult || 1) : (strat.defaultMult || 1);
-
-            let currentShares = Number(base.shares);
-            let currentAvg = Number(base.avgPrice);
-            let currentCash = Number(base.cash);
-            let initCash = Number(base.initCash);
+            let currentShares = Number(base.shares), currentAvg = Number(base.avgPrice), currentCash = Number(base.cash), initCash = Number(base.initCash);
 
             if (!exactRecord && stratDayOrders) {
                 if(stratDayOrders.buys) {
                     stratDayOrders.buys.forEach(b => {
-                        let bPrice = parseFloat(b.price);
-                        let bQty = parseInt(b.qty) * mult;
-                        if (!isNaN(bPrice) && !isNaN(bQty) && bQty > 0) {
-                            if (closePrice <= bPrice) {
-                                let executionPrice = closePrice;
-                                let totalCost = bQty * executionPrice;
-                                let newTotalShares = currentShares + bQty;
-                                if (newTotalShares > 0) {
-                                    currentAvg = ((currentShares * currentAvg) + totalCost) / newTotalShares;
-                                }
-                                currentShares = newTotalShares;
-                                currentCash -= totalCost;
-                            }
+                        let bPrice = parseFloat(b.price), bQty = parseInt(b.qty) * mult;
+                        if (!isNaN(bPrice) && !isNaN(bQty) && bQty > 0 && closePrice <= bPrice) {
+                            let totalCost = bQty * closePrice;
+                            let newTotalShares = currentShares + bQty;
+                            if (newTotalShares > 0) currentAvg = ((currentShares * currentAvg) + totalCost) / newTotalShares;
+                            currentShares = newTotalShares;
+                            currentCash -= totalCost;
                         }
                     });
                 }
-
                 if(stratDayOrders.sells) {
                     stratDayOrders.sells.forEach(s => {
-                        let sPrice = parseFloat(s.price);
-                        let sQty = parseInt(s.qty) * mult;
-                        let isMoc = s.isMoc;
-                        if (!isNaN(sQty) && sQty > 0) {
-                            if (isMoc || (!isNaN(sPrice) && closePrice >= sPrice)) {
-                                let executedQty = Math.min(currentShares, sQty);
-                                if (executedQty > 0) {
-                                    let executionPrice = closePrice;
-                                    currentCash += executedQty * executionPrice;
-                                    currentShares -= executedQty;
-                                    if (currentShares === 0) currentAvg = 0;
-                                }
+                        let sPrice = parseFloat(s.price), sQty = parseInt(s.qty) * mult, isMoc = s.isMoc;
+                        if (!isNaN(sQty) && sQty > 0 && (isMoc || (!isNaN(sPrice) && closePrice >= sPrice))) {
+                            let executedQty = Math.min(currentShares, sQty);
+                            if (executedQty > 0) {
+                                currentCash += executedQty * closePrice;
+                                currentShares -= executedQty;
+                                if (currentShares === 0) currentAvg = 0;
                             }
                         }
                     });
@@ -1055,159 +753,63 @@
             let profitUSD = evaluationTotal - initCash;
             let returnRate = initCash > 0 ? (profitUSD / initCash) * 100 : 0;
 
-            totalShares += currentShares;
-            totalCash += currentCash;
-            totalValUSD += evaluationTotal;
-            totalInit += initCash;
-            totalWeightedCost += currentShares * currentAvg;
+            totalShares += currentShares; totalCash += currentCash; totalValUSD += evaluationTotal; totalInit += initCash; totalWeightedCost += currentShares * currentAvg;
 
             tbody.innerHTML += `
                 <tr>
-                    <td title="${strat.name}"><b>${strat.name}</b></td>
-                    <td><input type="number" id="bal-shares-${strat.id}" value="${currentShares}" oninput="manualOverrideBalance()"></td>
-                    <td><input type="number" step="0.01" id="bal-avg-${strat.id}" value="${currentAvg.toFixed(2)}" oninput="manualOverrideBalance()"></td>
-                    <td><input type="number" step="0.01" id="bal-cash-${strat.id}" value="${currentCash.toFixed(2)}" oninput="manualOverrideBalance()"></td>
-                    <td><input type="number" step="0.01" id="bal-val-${strat.id}" value="${evaluationTotal.toFixed(2)}" oninput="manualOverrideBalance()"></td>
-                    <td id="val-profit-${strat.id}" style="color:${profitUSD>=0?'#e53e3e':'#3182ce'}">$${profitUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td id="val-return-${strat.id}" style="color:${returnRate>=0?'#e53e3e':'#3182ce'}">${returnRate >= 0 ? '▲' : '▼'}${Math.abs(returnRate).toFixed(1)}%</td>
-                    <td><input type="number" id="bal-init-${strat.id}" value="${initCash}" oninput="manualOverrideBalance()"></td>
-                </tr>
-            `;
+                    <td><b>${strat.name}</b></td>
+                    <td><input type="number" id="bal-shares-${strat.id}" value="${currentShares}"></td>
+                    <td><input type="number" step="0.01" id="bal-avg-${strat.id}" value="${currentAvg.toFixed(2)}"></td>
+                    <td><input type="number" step="0.01" id="bal-cash-${strat.id}" value="${currentCash.toFixed(2)}"></td>
+                    <td><input type="number" step="0.01" id="bal-val-${strat.id}" value="${evaluationTotal.toFixed(2)}"></td>
+                    <td style="color:${profitUSD>=0?'#e53e3e':'#3182ce'}">$${profitUSD.toFixed(2)}</td>
+                    <td style="color:${returnRate>=0?'#e53e3e':'#3182ce'}">${returnRate >= 0 ? '▲' : '▼'}${Math.abs(returnRate).toFixed(1)}%</td>
+                    <td><input type="number" id="bal-init-${strat.id}" value="${initCash}"></td>
+                </tr>`;
         });
 
-        let totProfit = totalValUSD - totalInit;
-        let totRet = totalInit > 0 ? (totProfit / totalInit) * 100 : 0;
+        let totProfit = totalValUSD - totalInit, totRet = totalInit > 0 ? (totProfit / totalInit) * 100 : 0;
         let totalAvgPrice = totalShares > 0 ? (totalWeightedCost / totalShares) : 0;
         let totalValKRW = totalValUSD * exchangeRate;
 
-        tfoot.innerHTML = `
-            <tr>
-                <td>합계</td>
-                <td style="color:#e53e3e;">${totalShares}</td>
-                <td>${totalShares > 0 ? '$' + totalAvgPrice.toFixed(2) : '-'}</td>
-                <td style="color:#2b6cb0;">$${totalCash.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td style="color:#1a365d;">$${totalValUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td style="color:${totProfit>=0?'#e53e3e':'#3182ce'}">$${totProfit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td style="color:${totRet>=0?'#e53e3e':'#3182ce'}">${totRet >= 0 ? '▲' : '▼'}${Math.abs(totRet).toFixed(1)}%</td>
-                <td>$${totalInit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-            </tr>
-        `;
+        tfoot.innerHTML = `<tr><td>합계</td><td style="color:#e53e3e;">${totalShares}</td><td>${totalShares > 0 ? '$' + totalAvgPrice.toFixed(2) : '-'}</td><td style="color:#2b6cb0;">$${totalCash.toFixed(2)}</td><td style="color:#1a365d;">$${totalValUSD.toFixed(2)}</td><td style="color:${totProfit>=0?'#e53e3e':'#3182ce'}">$${totProfit.toFixed(2)}</td><td style="color:${totRet>=0?'#e53e3e':'#3182ce'}">${totRet >= 0 ? '▲' : '▼'}${Math.abs(totRet).toFixed(1)}%</td><td>$${totalInit.toFixed(2)}</td></tr>`;
 
         if (krwDisplay) {
-            krwDisplay.innerHTML = `
-                <div class="krw-summary-box">
-                    <span>💱 <b>평가총합 원화 환산액</b> (적용 환율: ₩${exchangeRate.toLocaleString('ko-KR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / $1)</span>
-                    <b>￦${totalValKRW.toLocaleString('ko-KR', {maximumFractionDigits: 0})}</b>
-                </div>
-            `;
+            krwDisplay.innerHTML = `<div class="krw-summary-box"><span>💱 <b>원화 환산액</b> (₩${exchangeRate.toLocaleString()}/$1)</span><b>￦${totalValKRW.toLocaleString('ko-KR', {maximumFractionDigits: 0})}</b></div>`;
         }
     }
 
-    function updateBalanceLive() {
-        renderBalanceTable();
-    }
+    function updateBalanceLive() { renderBalanceTable(); }
 
-    function manualOverrideBalance() {}
-
-    function saveDailyRecord() {
+    async function saveDailyRecord() {
         let date = document.getElementById('record-date').value;
         let closePrice = parseFloat(document.getElementById('record-close-price').value) || 0;
         let exchangeRate = parseFloat(document.getElementById('record-exchange-rate').value) || 0;
-        let history = JSON.parse(localStorage.getItem('4strat_history_v13')) || [];
-        let details = {};
-        let totalValUSD = 0, totalInit = 0, totalSh = 0;
+        let details = {}, totalValUSD = 0, totalInit = 0, totalSh = 0;
 
         strategies.forEach(strat => {
-            let sharesEl = document.getElementById(`bal-shares-${strat.id}`);
-            let avgEl = document.getElementById(`bal-avg-${strat.id}`);
-            let cashEl = document.getElementById(`bal-cash-${strat.id}`);
-            let valEl = document.getElementById(`bal-val-${strat.id}`);
-            let initEl = document.getElementById(`bal-init-${strat.id}`);
+            let shares = parseFloat(document.getElementById(`bal-shares-${strat.id}`).value) || 0;
+            let avgPrice = parseFloat(document.getElementById(`bal-avg-${strat.id}`).value) || 0;
+            let cash = parseFloat(document.getElementById(`bal-cash-${strat.id}`).value) || 0;
+            let valUSD = parseFloat(document.getElementById(`bal-val-${strat.id}`).value) || 0;
+            let initCash = parseFloat(document.getElementById(`bal-init-${strat.id}`).value) || 0;
+            let profitUSD = valUSD - initCash, returnRate = initCash > 0 ? (profitUSD / initCash) * 100 : 0;
 
-            let shares = sharesEl ? (parseFloat(sharesEl.value) || 0) : 0;
-            let avgPrice = avgEl ? (parseFloat(avgEl.value) || 0) : 0;
-            let cash = cashEl ? (parseFloat(cashEl.value) || 0) : 0;
-            let valUSD = valEl ? (parseFloat(valEl.value) || 0) : 0;
-            let initCash = initEl ? (parseFloat(initEl.value) || 0) : 0;
-
-            let profitUSD = valUSD - initCash;
-            let returnRate = initCash > 0 ? (profitUSD / initCash) * 100 : 0;
-
-            totalValUSD += valUSD;
-            totalInit += initCash;
-            totalSh += shares;
+            totalValUSD += valUSD; totalInit += initCash; totalSh += shares;
             details[strat.id] = { name: strat.name, shares, avgPrice, cash, valUSD, initCash, profitUSD, returnRate };
         });
 
-        let totProfit = totalValUSD - totalInit;
-        let totRet = totalInit > 0 ? (totProfit / totalInit) * 100 : 0;
+        let totProfit = totalValUSD - totalInit, totRet = totalInit > 0 ? (totProfit / totalInit) * 100 : 0;
         let totalValKRW = totalValUSD * exchangeRate;
-
         let recordItem = { date, closePrice, exchangeRate, totalSh, totalValUSD, totalValKRW, totProfit, totRet, details };
         
         let existingIndex = history.findIndex(h => h.date === date);
-        let isCascade = document.getElementById('cascade-update-check').checked;
-
-        if (existingIndex >= 0) {
-            history[existingIndex] = recordItem;
-            alert(`[${date}] 기존 일별 잔고 기록이 수정되었습니다!`);
-        } else {
-            history.push(recordItem);
-            alert(`[${date}] 일별 잔고 기록이 새로 저장되었습니다!`);
-        }
+        if (existingIndex >= 0) history[existingIndex] = recordItem;
+        else history.push(recordItem);
 
         history.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        if (isCascade && history.length > 1) {
-            let modifiedIdx = history.findIndex(h => h.date === date);
-            for (let i = modifiedIdx + 1; i < history.length; i++) {
-                let prevH = history[i - 1];
-                let currH = history[i];
-                let currClose = currH.closePrice;
-                let currRate = currH.exchangeRate || exchangeRate;
-
-                let newDetails = {};
-                let cTotalVal = 0, cTotalInit = 0, cTotalSh = 0;
-
-                strategies.forEach(strat => {
-                    let pData = prevH.details[strat.id] || { shares: 0, avgPrice: 0, cash: 50000, initCash: 50000 };
-                    let shares = pData.shares;
-                    let avgPrice = pData.avgPrice;
-                    let cash = pData.cash;
-                    let initCash = pData.initCash;
-
-                    let valUSD = shares > 0 ? (shares * currClose) + cash : cash;
-                    let profitUSD = valUSD - initCash;
-                    let returnRate = initCash > 0 ? (profitUSD / initCash) * 100 : 0;
-
-                    cTotalVal += valUSD;
-                    cTotalInit += initCash;
-                    cTotalSh += shares;
-
-                    newDetails[strat.id] = { name: strat.name, shares, avgPrice, cash, valUSD, initCash, profitUSD, returnRate };
-                });
-
-                let cProfit = cTotalVal - cTotalInit;
-                let cRet = cTotalInit > 0 ? (cProfit / cTotalInit) * 100 : 0;
-                let cTotalKRW = cTotalVal * currRate;
-
-                currH.totalSh = cTotalSh;
-                currH.totalValUSD = cTotalVal;
-                currH.totalValKRW = cTotalKRW;
-                currH.totProfit = cProfit;
-                currH.totRet = cRet;
-                currH.exchangeRate = currRate;
-                currH.details = newDetails;
-            }
-            alert("선택하신 옵션에 따라 이후 날짜들의 히스토리도 연쇄적으로 재계산되었습니다.");
-        }
-
-        localStorage.setItem('4strat_history_v13', JSON.stringify(history));
-        
-        if(document.getElementById('record-exchange-rate')) {
-            document.getElementById('record-exchange-rate').dataset.lastDate = date;
-        }
-        
+        await saveCloudDataInstant();
+        alert(`[${date}] 일별 잔고가 클라우드에 안전하게 저장되었습니다!`);
         renderHistoryList();
     }
 
@@ -1219,117 +821,48 @@
         renderHistoryList();
     }
 
-    function createDonutChartSVG(details, totalVal) {
-        let size = 96;
-        let center = size / 2;
-        let radius = 35;
-        let circumference = 2 * Math.PI * radius;
-        
-        if (!totalVal || totalVal <= 0) {
-            return `<svg width="${size}" height="${size}"><circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="#e2e8f0" stroke-width="12"/></svg>`;
-        }
-
-        let accumulatedOffset = 0;
-        let svgContent = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-        
-        let idx = 0;
-        for (let key in details) {
-            let d = details[key];
-            let val = d.valUSD > 0 ? d.valUSD : 0;
-            let ratio = val / totalVal;
-            if (ratio > 0) {
-                let strokeDasharray = `${ratio * circumference} ${circumference}`;
-                let strokeDashoffset = -accumulatedOffset;
-                let color = chartColors[idx % chartColors.length];
-
-                svgContent += `<circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${color}" stroke-width="12" stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}" transform="rotate(-90 ${center} ${center})" />`;
-
-                accumulatedOffset += ratio * circumference;
-            }
-            idx++;
-        }
-
-        let shortVal = totalVal >= 1000 ? '$' + (totalVal / 1000).toFixed(1) + 'k' : '$' + totalVal.toFixed(0);
-        svgContent += `<text x="${center}" y="${center - 2}" text-anchor="middle" font-size="9" font-weight="bold" fill="#718096">총평가금액</text>`;
-        svgContent += `<text x="${center}" y="${center + 11}" text-anchor="middle" font-size="10" font-weight="bold" fill="#1a365d">${shortVal}</text>`;
-        svgContent += `</svg>`;
-        return svgContent;
+    async function deleteHistoryItem(dateStr) {
+        if (!confirm(`[${dateStr}] 기록을 삭제하시겠습니까?`)) return;
+        history = history.filter(h => h.date !== dateStr);
+        await saveCloudDataInstant();
+        renderHistoryList();
     }
 
     function renderHistoryList() {
         const container = document.getElementById('history-container');
         if(!container) return;
-        let history = JSON.parse(localStorage.getItem('4strat_history_v13')) || [];
         let recordDate = document.getElementById('record-date') ? document.getElementById('record-date').value : '';
-        
-        if (history.length === 0) {
-            container.innerHTML = '<div class="empty-slot">저장된 히스토리가 없습니다.</div>';
-            return;
-        }
+        if (history.length === 0) { container.innerHTML = '<div class="empty-slot">저장된 히스토리가 없습니다.</div>'; return; }
 
-        let sortedHistoryDesc = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        let displayList = sortedHistoryDesc;
-        if (isBalanceHistoryAllView && recordDate) {
-            displayList = sortedHistoryDesc.filter(h => h.date === recordDate);
-        }
+        let sorted = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
+        if (isBalanceHistoryAllView && recordDate) sorted = sorted.filter(h => h.date === recordDate);
 
         container.innerHTML = '';
-        if (displayList.length === 0) {
-            container.innerHTML = '<div class="empty-slot">선택된 날짜에 해당하는 잔고 기록이 없습니다.</div>';
-            return;
-        }
-
-        displayList.forEach((item) => {
-            let detailHtml = '';
-            let idx = 0;
+        sorted.forEach((item) => {
+            let detailHtml = '', idx = 0;
             for (let key in item.details) {
-                let d = item.details[key];
-                let color = chartColors[idx % chartColors.length];
+                let d = item.details[key], color = chartColors[idx % chartColors.length];
                 let weight = item.totalValUSD > 0 ? ((d.valUSD / item.totalValUSD) * 100).toFixed(1) : 0;
-                
-                detailHtml += `<div style="display:flex; align-items:center; margin-bottom:3px; gap:6px;">
-                    <span style="display:inline-block; width:8px; height:8px; background:${color}; border-radius:50%;"></span>
-                    <span><b>${d.name}</b>: ${d.shares}주 (평단:$${d.avgPrice}, 잔액:$${d.cash}, 평가총합:$${d.valUSD}) — 비중 <b style="color:#2b6cb0;">${weight}%</b></span>
-                </div>`;
+                detailHtml += `<div style="display:flex; align-items:center; margin-bottom:3px; gap:6px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span><span><b>${d.name}</b>: ${d.shares}주 (평단:$${d.avgPrice}, 총합:$${d.valUSD}) — 비중 <b>${weight}%</b></span></div>`;
                 idx++;
             }
-
-            let donutSvg = createDonutChartSVG(item.details, item.totalValUSD);
-            let rateInfo = item.exchangeRate ? item.exchangeRate : 1350;
-            let krwVal = item.totalValKRW ? item.totalValKRW : (item.totalValUSD * rateInfo);
-            let isSelectedCard = (item.date === recordDate);
-
+            let isSelected = (item.date === recordDate);
             container.innerHTML += `
-                <div class="history-card" style="${isSelectedCard ? 'border: 2px solid #2b6cb0; background-color: #f7fafc;' : ''}">
-                    <div class="history-header" style="${isSelectedCard ? 'color: #2b6cb0;' : 'color: #4a5568;'}">
-                        <span>📅 ${item.date} (종가: $${item.closePrice} | 환율: ₩${rateInfo}) ${isSelectedCard ? '<b>(현재 선택된 날짜)</b>' : ''}</span>
+                <div class="history-card" style="${isSelected ? 'border: 2px solid #2b6cb0; background-color: #f7fafc;' : ''}">
+                    <div class="history-header" style="${isSelected ? 'color: #2b6cb0;' : 'color: #4a5568;'}">
+                        <span>📅 ${item.date} (종가: $${item.closePrice} | 환율: ₩${item.exchangeRate || 1350})</span>
                         <button onclick="deleteHistoryItem('${item.date}')" style="background:none; border:none; color:#e53e3e; cursor:pointer; font-weight:bold;">삭제</button>
                     </div>
                     <div class="history-body-grid">
                         <div class="history-info-side">
-                            <b>총 보유수량:</b> ${item.totalSh}주 | <b>평가금액:</b> $${item.totalValUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (<b>￦${krwVal.toLocaleString('ko-KR', {maximumFractionDigits: 0})}</b>)<br>
-                            <b>손익:</b> <span style="color:${item.totProfit>=0?'#e53e3e':'#3182ce'}">$${item.totProfit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${item.totRet >= 0 ? '▲' : '▼'}${Math.abs(item.totRet).toFixed(1)}%)</span><br>
+                            <b>총 수량:</b> ${item.totalSh}주 | <b>평가금액:</b> $${item.totalValUSD.toFixed(2)} (<b>￦${(item.totalValKRW || 0).toLocaleString()}</b>)<br>
+                            <b>손익:</b> <span style="color:${item.totProfit>=0?'#e53e3e':'#3182ce'}">$${item.totProfit.toFixed(2)} (${item.totRet >= 0 ? '▲' : '▼'}${Math.abs(item.totRet).toFixed(1)}%)</span>
                             <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #edf2f7;">${detailHtml}</div>
                         </div>
-                        <div class="history-chart-side">
-                            ${donutSvg}
-                        </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         });
     }
-
-    function deleteHistoryItem(dateStr) {
-        if (!confirm(`[${dateStr}] 히스토리를 삭제하시겠습니까?`)) return;
-        let history = JSON.parse(localStorage.getItem('4strat_history_v13')) || [];
-        history = history.filter(h => h.date !== dateStr);
-        localStorage.setItem('4strat_history_v13', JSON.stringify(history));
-        renderHistoryList();
-    }
-
-    initUI();
 </script>
 </body>
 </html>

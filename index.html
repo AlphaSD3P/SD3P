@@ -195,8 +195,8 @@
         .dual-tables-container { display: flex; gap: 15px; align-items: flex-start; }
         .order-column { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; min-height: 200px; }
         .column-title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #edf2f7; }
-        .title-sell-col { color: #2b6cb0; }
-        .title-buy-col { color: #c53030; }
+        .title-sell-col { color: #3182ce; }
+        .title-buy-col { color: #e53e3e; }
 
         .order-card { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; margin-bottom: 5px; border-radius: 6px; font-size: 13px; font-weight: bold; border: 1px solid #cbd5e0; }
         .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
@@ -675,7 +675,7 @@
                         stratCardsHtml += `<div style="background:#f8f9fa; border:1px solid #edf2f7; border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:13px;">
                             <div style="font-weight:bold; color:#1a365d; margin-bottom:4px;">📌 ${strat.name} <span style="font-size:11px; color:#666;">(배율: ${mult}배)</span></div>
                             <div style="color:#e53e3e; margin-bottom:2px;">🔴 매수: ${buyStr}</div>
-                            <div style="color:#2b6cb0;">🔵 매도: ${sellStr}</div>
+                            <div style="color:#3182ce;">🔵 매도: ${sellStr}</div>
                         </div>`;
                     });
 
@@ -726,13 +726,13 @@
         sellResults.forEach((item, index) => {
             let bg = index % 2 === 0 ? 'row-white' : 'row-yellow';
             let txt = item.isMoc ? `매도·MOC` : `매도·LOC $${item.price.toFixed(2)}`;
-            sellList.innerHTML += `<div class="order-card card-sell ${bg}"><span><span class="dot dot-sell"></span><b>${txt}</b></span><b>${item.qty}주</b></div>`;
+            sellList.innerHTML += `<div class="order-card card-sell ${bg}"><span><span class="dot dot-sell"></span><b style="color:#3182ce;">${txt}</b></span><b style="color:#3182ce;">${item.qty}주</b></div>`;
         });
 
         buyList.innerHTML = buyResults.length === 0 ? '<div class="empty-slot">매수 주문 없음</div>' : '';
         buyResults.forEach((item, index) => {
             let bg = index % 2 === 0 ? 'row-white' : 'row-yellow';
-            buyList.innerHTML += `<div class="order-card card-buy ${bg}"><span><span class="dot dot-buy"></span><b>매수·LOC $${item.price.toFixed(2)}</b></span><b>${item.qty}주</b></div>`;
+            buyList.innerHTML += `<div class="order-card card-buy ${bg}"><span><span class="dot dot-buy"></span><b style="color:#e53e3e;">매수·LOC $${item.price.toFixed(2)}</b></span><b style="color:#e53e3e;">${item.qty}주</b></div>`;
         });
 
         let finalBuyNeedMoney = 0;
@@ -751,35 +751,30 @@
         let recordDate = document.getElementById('record-date').value;
         window.historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        // 1. 당일 정확한 기록이 있는지 확인
         let exactRecord = window.historyData.find(h => h.date === recordDate);
-        
-        // 2. 정확한 기록이 없다면, 주말/휴장일을 자동 건너뛰고 '가장 가까운 과거(직전 영업일)'의 기록을 베이스로 탐색
-        let baseRecord = exactRecord;
-        if (!baseRecord) {
-            let pastRecords = window.historyData.filter(h => h.date < recordDate);
-            if (pastRecords.length > 0) {
-                baseRecord = pastRecords[pastRecords.length - 1]; // 가장 최신 과거 기록
-            }
-        }
-        
         let rateInput = document.getElementById('record-exchange-rate');
         let closeInput = document.getElementById('record-close-price');
 
         if (exactRecord) {
             if (closeInput && closeInput.dataset.lastDate !== recordDate) { closeInput.value = exactRecord.closePrice; closeInput.dataset.lastDate = recordDate; }
             if (rateInput && rateInput.dataset.lastDate !== recordDate) { rateInput.value = exactRecord.exchangeRate || 1350; rateInput.dataset.lastDate = recordDate; }
+        } else {
+            if (closeInput && closeInput.dataset.lastDate !== recordDate) { closeInput.dataset.lastDate = recordDate; }
+            if (rateInput && rateInput.dataset.lastDate !== recordDate) { rateInput.dataset.lastDate = recordDate; }
         }
 
         let closePrice = parseFloat(closeInput.value) || 0;
         let exchangeRate = parseFloat(rateInput.value) || 0;
+
+        // 주말/휴장일을 자동 건너뛰기 위해 가장 가까운 과거(직전 영업일) 기록 탐색
+        let pastRecords = window.historyData.filter(h => h.date < recordDate);
+        let baseRecord = pastRecords.length > 0 ? pastRecords[pastRecords.length - 1] : null;
 
         tbody.innerHTML = '';
         let totalShares = 0, totalCash = 0, totalValUSD = 0, totalInit = 0, totalWeightedCost = 0;
         let dayOrders = window.allData[recordDate] || {};
 
         window.strategies.forEach(strat => {
-            // 직전 영업일 기록이 있으면 그 데이터를 가져오고, 없으면 기법 기본값 사용
             let base = { 
                 shares: strat.defaultShares || 0, 
                 avgPrice: strat.defaultAvg || 0, 
@@ -796,8 +791,8 @@
             let mult = stratDayOrders ? (stratDayOrders.mult || 1) : (strat.defaultMult || 1);
             let currentShares = Number(base.shares), currentAvg = Number(base.avgPrice), currentCash = Number(base.cash), initCash = Number(base.initCash);
 
-            // 당일 확정된 일별 기록이 없을 때만 직전 데이터 + 당일 입력한 주문의 체결 시뮬레이션 자동 반영
-            if (!exactRecord && stratDayOrders) {
+            // [핵심 수정] 일별 누적 히스토리가 기록되어 있더라도, 종가나 주문을 수정하면 전날 데이터를 베이스로 실시간 재계산 수행
+            if (stratDayOrders) {
                 if(stratDayOrders.buys) {
                     stratDayOrders.buys.forEach(b => {
                         let bPrice = parseFloat(b.price), bQty = parseInt(b.qty) * mult;

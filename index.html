@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>통합 퉁치기 & 잔고 일별 기록 (보안 로그인 연동)</title>
+    <title>SD3P & 잔고 일별 기록 (보안 로그인 연동)</title>
     
     <!-- Firebase SDK (App, Firestore, Auth) 불러오기 -->
     <script type="module">
@@ -253,11 +253,10 @@
 
     function getDefaultStrategies() {
         return [
-            { id: 'strat1', name: '스위치', defaultMult: 1, defaultCash: 72134.02, defaultShares: 0, defaultAvg: 0, defaultInit: 60000 },
-            { id: 'strat2', name: '동파', defaultMult: 6, defaultCash: 68490.00, defaultShares: 90, defaultAvg: 125.87, defaultInit: 60000 },
-            { id: 'strat3', name: '3쥐', defaultMult: 6, defaultCash: 49428.00, defaultShares: 12, defaultAvg: 123.31, defaultInit: 60000 },
-            { id: 'strat4', name: '펑그마', defaultMult: 1, defaultCash: 5310.41, defaultShares: 1, defaultAvg: 108.89, defaultInit: 5000 },
-            { id: 'strat5', name: '방어', defaultMult: 1, defaultCash: 50000.00, defaultShares: 0, defaultAvg: 0, defaultInit: 50000 }
+            { id: 'strat1', name: '스', defaultMult: 1, defaultCash: 72134.02, defaultShares: 0, defaultAvg: 0, defaultInit: 60000 },
+            { id: 'strat2', name: '동', defaultMult: 6, defaultCash: 68490.00, defaultShares: 90, defaultAvg: 125.87, defaultInit: 60000 },
+            { id: 'strat3', name: '3', defaultMult: 6, defaultCash: 49428.00, defaultShares: 12, defaultAvg: 123.31, defaultInit: 60000 },
+            { id: 'strat4', name: '펑', defaultMult: 1, defaultCash: 5310.41, defaultShares: 1, defaultAvg: 108.89, defaultInit: 5000 },
         ];
     }
 

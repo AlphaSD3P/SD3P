@@ -385,8 +385,8 @@
                 <div class="control-box" style="justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap;">
                     <div><label>📅 기록 날짜</label><input type="date" id="record-date" onchange="updateBalanceLive()" style="width:130px; margin-left:5px;"></div>
                     <div style="display:flex; gap:15px; align-items:center;">
-                        <div><label>💵 당일 종가($)</label><input type="number" step="0.01" id="record-close-price" value="125.87" oninput="updateBalanceLive()" style="width:80px; margin-left:5px;"></div>
-                        <div><label>💱 환율(원/달러)</label><input type="number" step="0.01" id="record-exchange-rate" value="1350.00" oninput="updateBalanceLive()" style="width:90px; margin-left:5px;"></div>
+                        <div><label>💵 당일 종가($)</label><input type="number" step="0.01" id="record-close-price" value="${lastClosePrice}" oninput="updateBalanceLive()" style="width:80px; margin-left:5px;"></div>
+                        <div><label>💱 환율(원/달러)</label><input type="number" step="0.01" id="record-exchange-rate" value="${lastExchangeRate}" oninput="updateBalanceLive()" style="width:90px; margin-left:5px;"></div>
                     </div>
                 </div>
                 <table class="balance-table">

@@ -744,14 +744,25 @@
         let rateInput = document.getElementById('record-exchange-rate');
         let closeInput = document.getElementById('record-close-price');
 
+        // 👇 전체 히스토리 중 가장 최신 기록 찾기
+        let sortedAllHistory = [...window.historyData].sort((a, b) => new Date(b.date) - new Date(a.date));
+        let latestRecord = sortedAllHistory.length > 0 ? sortedAllHistory[0] : null;
+
         if (exactRecord) {
+            // 선택한 날짜에 저장된 기록이 있다면 그 날짜의 값을 사용
             if (closeInput && closeInput.dataset.lastDate !== recordDate) { closeInput.value = exactRecord.closePrice; closeInput.dataset.lastDate = recordDate; }
             if (rateInput && rateInput.dataset.lastDate !== recordDate) { rateInput.value = exactRecord.exchangeRate || 1350; rateInput.dataset.lastDate = recordDate; }
         } else {
-            if (closeInput && closeInput.dataset.lastDate !== recordDate) { closeInput.dataset.lastDate = recordDate; }
-            if (rateInput && rateInput.dataset.lastDate !== recordDate) { rateInput.dataset.lastDate = recordDate; }
+            // 👇 선택한 날짜의 기록이 없다면, '가장 최신 기록'의 값을 기본으로 채워줌
+            if (closeInput && closeInput.dataset.lastDate !== recordDate) { 
+                closeInput.value = latestRecord ? latestRecord.closePrice : 125.87;
+                closeInput.dataset.lastDate = recordDate; 
+            }
+            if (rateInput && rateInput.dataset.lastDate !== recordDate) { 
+                rateInput.value = latestRecord ? (latestRecord.exchangeRate || 1350.00) : 1350.00;
+                rateInput.dataset.lastDate = recordDate; 
+            }
         }
-
         let closePrice = parseFloat(closeInput.value) || 0;
         let exchangeRate = parseFloat(rateInput.value) || 0;
 
